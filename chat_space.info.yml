@@ -1,0 +1,7 @@
+name: Chat Space
+type: module
+description: 'Modern, Discord benzeri sohbet ve chat odası modülü.'
+package: Custom
+core_version_requirement: ^10 || ^11
+dependencies:
+  - user

@@ -1,0 +1,33 @@
+<?php
+
+/**
+ * @file
+ * Main module file for Chat Space.
+ */
+
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\user\Entity\User;
+
+/**
+ * Implements hook_help().
+ */
+function chat_space_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    case 'help.page.chat_space':
+      return t('Chat Space, anlık sohbet odaları oluşturmanıza ve sohbet etmenize imkan tanır.');
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function chat_space_theme($existing, $type, $theme, $path) {
+  return [
+    'chat_space_room' => [
+      'variables' => [
+        'room' => NULL,
+      ],
+      'template' => 'chat-space-room',
+    ],
+  ];
+}

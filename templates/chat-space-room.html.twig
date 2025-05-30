@@ -1,0 +1,71 @@
+<!-- Mobil sidebar overlay -->
+<div class="mobile-sidebar-overlay" id="mobile-sidebar-overlay"></div>
+
+<div id="chat-space-container" data-room-id="{{ room.room_id.value }}">
+  <!-- Room Header -->
+  <div class="chat-room-header">
+    <div class="room-info">
+      <h2 class="room-title">{{ room.title.value }}</h2>
+      {% if room.description.value %}
+        <p class="room-description">{{ room.description.value }}</p>
+      {% endif %}
+    </div>
+    <div class="room-actions">
+      <!-- Mobil kullanıcı listesi toggle butonu -->
+      <button class="mobile-user-toggle" id="mobile-user-toggle" title="Kullanıcıları Göster/Gizle">
+        <span class="user-icon">👥</span>
+        <span class="toggle-text">Kullanıcılar</span>
+      </button>
+      
+      <!-- Oda ayarları butonu -->
+      <button class="room-action-btn" id="room-settings-btn" title="Oda Ayarları">
+        <span class="settings-icon">⚙️</span>
+      </button>
+    </div>
+  </div>
+  
+  <div class="chat-space-main">
+    <!-- Messages Section -->
+    <section class="chat-space-messages">
+      <div id="chat-messages">
+        <div class="messages-loading">
+          <div class="loading-spinner"></div>
+          <span>Mesajlar yükleniyor...</span>
+        </div>
+      </div>
+      <form class="chat-space-message-form" id="chat-message-form" autocomplete="off">
+        <div class="emoji-picker-container">
+          <button type="button" id="emoji-picker-toggle" title="Emoji" tabindex="-1">😀</button>
+          <div id="emoji-picker-panel" class="emoji-picker-panel" style="display: none;"></div>
+        </div>
+        <input
+          type="text"
+          name="message"
+          id="chat-message-input"
+          class="chat-message-input"
+          placeholder="Mesajınızı yazın..."
+          maxlength="512"
+          autocomplete="off"
+          required
+        />
+        <button type="submit" id="chat-message-send" class="chat-message-send" title="Gönder">➤</button>
+      </form>
+    </section>
+    
+    <!-- User List Section - Mobilde yandan açılan sidebar -->
+    <aside class="chat-space-userlist" id="chat-userlist">
+      <div class="userlist-header">
+        <div class="header-content">
+          <span class="online-icon">👥</span>
+          <span class="userlist-title">Kullanıcılar</span> 
+          <span class="user-count">(0)</span>
+        </div>
+        <!-- Mobilde kapatma butonu -->
+        <button class="close-sidebar" id="close-sidebar" title="Kapat">×</button>
+      </div>
+      <ul class="userlist-list">
+        <li class="userlist-loading">Yükleniyor...</li>
+      </ul>
+    </aside>
+  </div>
+</div>

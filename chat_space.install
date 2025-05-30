@@ -1,0 +1,79 @@
+<?php
+
+/**
+ * @file
+ * Install file for Chat Space module.
+ */
+
+use Drupal\Core\Database\Database;
+
+/**
+ * Implements hook_schema().
+ */
+function chat_space_schema() {
+  $schema['chat_space_room'] = [
+    'description' => 'Sohbet odaları',
+    'fields' => [
+      'room_id' => [
+        'type' => 'serial',
+        'not null' => TRUE,
+      ],
+      'title' => [
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ],
+      'description' => [
+        'type' => 'text',
+        'not null' => FALSE,
+      ],
+      'owner' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+      'created' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+      'visibility' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+    ],
+    'primary key' => ['room_id'],
+  ];
+
+  $schema['chat_space_message'] = [
+    'description' => 'Sohbet mesajları',
+    'fields' => [
+      'message_id' => [
+        'type' => 'serial',
+        'not null' => TRUE,
+      ],
+      'room_id' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+      'uid' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+      'message' => [
+        'type' => 'text',
+        'not null' => TRUE,
+      ],
+      'created' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+    ],
+    'primary key' => ['message_id'],
+    'indexes' => [
+      'room_id' => ['room_id'],
+      'created' => ['created'],
+    ],
+  ];
+
+  return $schema;
+}

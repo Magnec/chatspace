@@ -1,0 +1,102 @@
+chat_space.rooms:
+  path: '/chat-space'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::listRooms'
+    _title: 'Sohbet Odaları'
+  requirements:
+    _permission: 'access chat rooms'
+
+chat_space.debug:
+  path: '/chat-space/debug'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\DebugController::test'
+    _title: 'Chat Space Debug'
+  requirements:
+    _permission: 'administer chat space'
+
+chat_space.api.heartbeat:
+  path: '/chat-space/{room_id}/heartbeat'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::heartbeat'
+  requirements:
+    _access: 'TRUE'
+    room_id: \d+
+  methods: [POST]
+
+chat_space.api.typing:
+  path: '/chat-space/{room_id}/typing'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::typing'
+  requirements:
+    _access: 'TRUE'
+    room_id: \d+
+  methods: [POST]
+
+chat_space.room:
+  path: '/chat-space/room/{room_id}'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::viewRoom'
+    _title_callback: '\Drupal\chat_space\Controller\ChatRoomController::getRoomTitle'
+  requirements:
+    _permission: 'access chat rooms'
+    room_id: \d+
+
+chat_space.message.send:
+  path: '/chat-space/{room_id}/send'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatMessageController::sendMessage'
+  requirements:
+    _access: 'TRUE'
+    room_id: \d+
+  methods: [POST]
+
+chat_space.api.messages:
+  path: '/chat-space/{room_id}/messages'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatMessageController::loadMessages'
+  requirements:
+    _permission: 'access chat rooms'
+    room_id: \d+
+  methods: [GET]
+
+chat_space.api.users:
+  path: '/chat-space/{room_id}/users'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::getActiveUsers'
+  requirements:
+    _permission: 'access chat rooms'
+    room_id: \d+
+  methods: [GET]
+
+# Entity routes
+entity.chat_space_room.add_form:
+  path: '/chat-space/add'
+  defaults:
+    _entity_form: 'chat_space_room.add'
+    _title: 'Yeni Sohbet Odası Oluştur'
+  requirements:
+    _permission: 'create chat rooms'
+
+entity.chat_space_room.edit_form:
+  path: '/chat-space/{chat_space_room}/edit'
+  defaults:
+    _entity_form: 'chat_space_room.edit'
+    _title: 'Sohbet Odasını Düzenle'
+  requirements:
+    _permission: 'administer chat space'
+
+entity.chat_space_room.delete_form:
+  path: '/chat-space/{chat_space_room}/delete'
+  defaults:
+    _entity_form: 'chat_space_room.delete'
+    _title: 'Sohbet Odasını Sil'
+  requirements:
+    _permission: 'administer chat space'
+
+entity.chat_space_room.canonical:
+  path: '/chat-space/{chat_space_room}'
+  defaults:
+    _entity_view: 'chat_space_room.full'
+    _title: 'Sohbet Odası'
+  requirements:
+    _permission: 'access chat rooms'
