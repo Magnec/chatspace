@@ -1,0 +1,4 @@
+services:
+  chat_space.mention_service:
+    class: Drupal\chat_space\Service\UserMentionService
+    arguments: ['@entity_type.manager', '@database']

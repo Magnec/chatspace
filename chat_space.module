@@ -1,0 +1,266 @@
+<?php
+
+/**
+ * @file
+ * Main module file for Chat Space.
+ */
+
+use Drupal\Core\Routing\RouteMatchInterface;
+use Drupal\user\Entity\User;
+
+/**
+ * Implements hook_help().
+ */
+function chat_space_help($route_name, RouteMatchInterface $route_match) {
+  switch ($route_name) {
+    case 'help.page.chat_space':
+      return t('Chat Space, anlık sohbet odaları oluşturmanıza ve sohbet etmenize imkan tanır. Kullanıcı etiketleme (@mention) özelliği ile Discord benzeri bildirimler gönderebilirsiniz.');
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function chat_space_theme($existing, $type, $theme, $path) {
+  return [
+    'chat_space_room' => [
+      'variables' => [
+        'room' => NULL,
+      ],
+      'template' => 'chat-space-room',
+    ],
+    // YENİ: Mention notification template
+    'chat_space_mention_notification' => [
+      'variables' => [
+        'sender' => NULL,
+        'mentioned_user' => NULL,
+        'room' => NULL,
+        'message' => NULL,
+        'timestamp' => NULL,
+      ],
+      'template' => 'chat-space-mention-notification',
+    ],
+  ];
+}
+
+/**
+ * YENİ: Chat space mention oluşturulduğunda tetiklenen hook.
+ */
+function chat_space_mention_created($mention_data) {
+  // Diğer modüllerin mention olaylarını dinleyebilmesi için hook çağır
+  \Drupal::moduleHandler()->invokeAll('chat_space_mention_created', [$mention_data]);
+}
+
+/**
+ * YENİ: Implements hook_mail() - mention için email bildirimleri.
+ */
+function chat_space_mail($key, &$message, $params) {
+  switch ($key) {
+    case 'mention_notification':
+      $message['from'] = \Drupal::config('system.site')->get('mail');
+      $message['subject'] = t('You were mentioned in @room', [
+        '@room' => $params['room_title']
+      ]);
+      
+      $message['body'][] = t('@sender mentioned you in "@room": "@message"', [
+        '@sender' => $params['sender_name'],
+        '@room' => $params['room_title'], 
+        '@message' => $params['message_text']
+      ]);
+      
+      if (!empty($params['room_url'])) {
+        $message['body'][] = t('View the conversation: @url', [
+          '@url' => $params['room_url']
+        ]);
+      }
+      break;
+  }
+}
+
+/**
+ * YENİ: Implements hook_cron() - eski mention'ları temizle.
+ */
+function chat_space_cron() {
+  $config = \Drupal::config('chat_space.settings');
+  $retention_days = $config->get('mention_retention_days') ?: 30;
+  
+  try {
+    // Eski mention kayıtlarını temizle
+    $cutoff_time = \Drupal::time()->getRequestTime() - ($retention_days * 24 * 60 * 60);
+    
+    $deleted = \Drupal::database()
+      ->delete('chat_space_mentions')
+      ->condition('created', $cutoff_time, '<')
+      ->execute();
+    
+    if ($deleted > 0) {
+      \Drupal::logger('chat_space')->info('Cleaned up @count old mention records.', ['@count' => $deleted]);
+    }
+    
+    // Message modülü varsa eski mention message'larını da temizle
+    if (\Drupal::moduleHandler()->moduleExists('message')) {
+      $message_retention_days = $config->get('mention_message_retention_days') ?: 7;
+      $message_cutoff = \Drupal::time()->getRequestTime() - ($message_retention_days * 24 * 60 * 60);
+      
+      $message_ids = \Drupal::entityTypeManager()
+        ->getStorage('message')
+        ->getQuery()
+        ->accessCheck(FALSE)
+        ->condition('template', 'chat_space_mention')
+        ->condition('created', $message_cutoff, '<')
+        ->execute();
+      
+      if (!empty($message_ids)) {
+        $messages = \Drupal::entityTypeManager()
+          ->getStorage('message')
+          ->loadMultiple($message_ids);
+        
+        foreach ($messages as $message) {
+          $message->delete();
+        }
+        
+        \Drupal::logger('chat_space')->info('Cleaned up @count old mention messages.', ['@count' => count($message_ids)]);
+      }
+    }
+    
+  } catch (\Exception $e) {
+    \Drupal::logger('chat_space')->error('Error during mention cleanup: @error', ['@error' => $e->getMessage()]);
+  }
+}
+
+/**
+ * YENİ: Implements hook_user_cancel() - kullanıcı silindiğinde mention'ları temizle.
+ */
+function chat_space_user_cancel($edit, $account, $method) {
+  try {
+    // Kullanıcının gönderdiği mention'ları temizle
+    \Drupal::database()
+      ->delete('chat_space_mentions')
+      ->condition('sender_uid', $account->id())
+      ->execute();
+    
+    // Kullanıcıya yapılan mention'ları temizle
+    \Drupal::database()
+      ->delete('chat_space_mentions')
+      ->condition('mentioned_uid', $account->id())
+      ->execute();
+    
+    // Message mention'larını temizle
+    if (\Drupal::moduleHandler()->moduleExists('message')) {
+      $message_ids = \Drupal::entityTypeManager()
+        ->getStorage('message')
+        ->getQuery()
+        ->accessCheck(FALSE)
+        ->condition('template', 'chat_space_mention')
+        ->condition('uid', $account->id())
+        ->execute();
+      
+      if (!empty($message_ids)) {
+        $messages = \Drupal::entityTypeManager()
+          ->getStorage('message')
+          ->loadMultiple($message_ids);
+        
+        foreach ($messages as $message) {
+          $message->delete();
+        }
+      }
+    }
+    
+    \Drupal::logger('chat_space')->info('Cleaned up mentions for deleted user @user', ['@user' => $account->getAccountName()]);
+    
+  } catch (\Exception $e) {
+    \Drupal::logger('chat_space')->error('Error cleaning up mentions for user @user: @error', [
+      '@user' => $account->getAccountName(),
+      '@error' => $e->getMessage()
+    ]);
+  }
+}
+
+/**
+ * YENİ: Implements hook_entity_delete() - mesaj silindiğinde mention'ları temizle.
+ */
+function chat_space_entity_delete($entity) {
+  if ($entity->getEntityTypeId() === 'chat_space_message') {
+    try {
+      // Bu mesaja ait mention'ları temizle
+      \Drupal::database()
+        ->delete('chat_space_mentions')
+        ->condition('message_id', $entity->id())
+        ->execute();
+      
+    } catch (\Exception $e) {
+      \Drupal::logger('chat_space')->error('Error cleaning up mentions for deleted message: @error', ['@error' => $e->getMessage()]);
+    }
+  }
+  
+  if ($entity->getEntityTypeId() === 'chat_space_room') {
+    try {
+      // Bu odaya ait mention'ları temizle
+      \Drupal::database()
+        ->delete('chat_space_mentions')
+        ->condition('room_id', $entity->id())
+        ->execute();
+      
+      // Bu odaya ait mention message'larını temizle
+      if (\Drupal::moduleHandler()->moduleExists('message')) {
+        $message_ids = \Drupal::entityTypeManager()
+          ->getStorage('message')
+          ->getQuery()
+          ->accessCheck(FALSE)
+          ->condition('template', 'chat_space_mention')
+          ->condition('field_room_id', $entity->id())
+          ->execute();
+        
+        if (!empty($message_ids)) {
+          $messages = \Drupal::entityTypeManager()
+            ->getStorage('message')
+            ->loadMultiple($message_ids);
+          
+          foreach ($messages as $message) {
+            $message->delete();
+          }
+        }
+      }
+      
+    } catch (\Exception $e) {
+      \Drupal::logger('chat_space')->error('Error cleaning up mentions for deleted room: @error', ['@error' => $e->getMessage()]);
+    }
+  }
+}
+
+/**
+ * YENİ: Implements hook_preprocess_HOOK() for mention notifications.
+ */
+function chat_space_preprocess_chat_space_mention_notification(&$variables) {
+  $sender = $variables['sender'];
+  $mentioned_user = $variables['mentioned_user'];
+  $room = $variables['room'];
+  $message = $variables['message'];
+  
+  // URL'leri oluştur
+  if ($room && $room->getSlug()) {
+    $variables['room_url'] = \Drupal\Core\Url::fromRoute('chat_space.room_by_slug', [
+      'slug' => $room->getSlug()
+    ])->setAbsolute()->toString();
+  } elseif ($room) {
+    $variables['room_url'] = \Drupal\Core\Url::fromRoute('chat_space.room', [
+      'room_id' => $room->id()
+    ])->setAbsolute()->toString();
+  }
+  
+  // Avatar URL'leri
+  $variables['sender_avatar'] = '/core/themes/stable9/images/avatar.png';
+  if ($sender && $sender->user_picture && $sender->user_picture->entity) {
+    $variables['sender_avatar'] = \Drupal::service('file_url_generator')
+      ->generateAbsoluteString($sender->user_picture->entity->getFileUri());
+  }
+  
+  // Formatlanmış zaman
+  $variables['formatted_time'] = \Drupal::service('date.formatter')
+    ->format($variables['timestamp'], 'short');
+  
+  // Kısaltılmış mesaj
+  $variables['short_message'] = mb_strlen($message) > 100 
+    ? mb_substr($message, 0, 100) . '...'
+    : $message;
+}

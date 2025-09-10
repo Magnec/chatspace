@@ -1,0 +1,206 @@
+chat_space.rooms:
+  path: '/chat-space'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::listRooms'
+    _title: 'Sohbet Odaları'
+  requirements:
+    _permission: 'access chat rooms'
+
+chat_space.debug:
+  path: '/chat-space/debug'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\DebugController::test'
+    _title: 'Chat Space Debug'
+  requirements:
+    _permission: 'administer chat space'
+
+# YENİ: Token endpoint
+chat_space.get_token:
+  path: '/chat-space/get-token'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\DebugController::getToken'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  methods: [GET]
+
+# YENİ: Test users endpoint
+chat_space.test_users:
+  path: '/chat-space/{room_id}/test-users'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\DebugController::testUsers'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+    room_id: \d+
+  methods: [GET]
+
+chat_space.api.heartbeat:
+  path: '/chat-space/{room_id}/heartbeat'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::heartbeat'
+  requirements:
+    _access: 'TRUE'
+    room_id: \d+
+  methods: [POST]
+
+chat_space.api.typing:
+  path: '/chat-space/{room_id}/typing'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::typing'
+  requirements:
+    _access: 'TRUE'
+    room_id: \d+
+  methods: [POST]
+
+# ESKİ: ID ile oda erişimi (geriye uyumluluk için)
+chat_space.room:
+  path: '/chat-space/room/{room_id}'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::viewRoom'
+    _title_callback: '\Drupal\chat_space\Controller\ChatRoomController::getRoomTitle'
+  requirements:
+    _permission: 'access chat rooms'
+    room_id: \d+
+
+# YENİ: Slug ile oda erişimi (ana yöntem)
+chat_space.room_by_slug:
+  path: '/chat-space/room/{slug}'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::viewRoomBySlug'
+    _title_callback: '\Drupal\chat_space\Controller\ChatRoomController::getRoomTitleBySlug'
+  requirements:
+    _permission: 'access chat rooms'
+    slug: '[a-zA-Z0-9\-_]+'
+
+# DÜZELTME: Sohbet geçmişini temizle - slug desteği
+chat_space.clear_history:
+  path: '/chat-space/{room_id}/clear-history'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::clearChatHistory'
+    _title: 'Sohbet Geçmişini Temizle'
+  requirements:
+    _permission: 'access chat rooms'
+    room_id: \d+
+  methods: [GET, POST]
+  options:
+    parameters:
+      room_id:
+        type: 'integer'
+
+# YENİ: Slug ile sohbet geçmişini temizle
+chat_space.clear_history_by_slug:
+  path: '/chat-space/room/{slug}/clear-history'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::clearChatHistoryBySlug'
+    _title: 'Sohbet Geçmişini Temizle'
+  requirements:
+    _permission: 'access chat rooms'
+    slug: '[a-zA-Z0-9\-_]+'
+  methods: [GET, POST]
+
+chat_space.message.send:
+  path: '/chat-space/{room_id}/send'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatMessageController::sendMessage'
+  requirements:
+    _access: 'TRUE'
+    room_id: \d+
+  methods: [POST]
+
+# YENİ: Mesaj düzenleme endpoint'i
+chat_space.message.edit:
+  path: '/chat-space/{room_id}/message/{message_id}/edit'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatMessageController::editMessage'
+  requirements:
+    _permission: 'edit own chat messages'
+    room_id: \d+
+    message_id: \d+
+  methods: [POST]
+
+# YENİ: Mesaj silme endpoint'i
+chat_space.message.delete:
+  path: '/chat-space/{room_id}/message/{message_id}/delete'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatMessageController::deleteMessage'
+  requirements:
+    _permission: 'delete own chat messages'
+    room_id: \d+
+    message_id: \d+
+  methods: [POST]
+
+chat_space.api.messages:
+  path: '/chat-space/{room_id}/messages'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatMessageController::loadMessages'
+  requirements:
+    _permission: 'access chat rooms'
+    room_id: \d+
+  methods: [GET]
+
+chat_space.api.users:
+  path: '/chat-space/{room_id}/users'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\ChatRoomController::getActiveUsers'
+  requirements:
+    _permission: 'access chat rooms'
+    room_id: \d+
+  methods: [GET]
+
+# Entity routes
+entity.chat_space_room.add_form:
+  path: '/chat-space/add'
+  defaults:
+    _entity_form: 'chat_space_room.add'
+    _title: 'Yeni Sohbet Odası Oluştur'
+  requirements:
+    _permission: 'create chat rooms'
+
+entity.chat_space_room.edit_form:
+  path: '/chat-space/{chat_space_room}/edit'
+  defaults:
+    _entity_form: 'chat_space_room.edit'
+    _title: 'Sohbet Odasını Düzenle'
+  requirements:
+    _permission: 'administer chat space'
+
+entity.chat_space_room.delete_form:
+  path: '/chat-space/{chat_space_room}/delete'
+  defaults:
+    _entity_form: 'chat_space_room.delete'
+    _title: 'Sohbet Odasını Sil'
+  requirements:
+    _permission: 'administer chat space'
+
+entity.chat_space_room.canonical:
+  path: '/chat-space/{chat_space_room}'
+  defaults:
+    _entity_view: 'chat_space_room.full'
+    _title: 'Sohbet Odası'
+  requirements:
+    _permission: 'access chat rooms'
+
+chat_space.mention.users:
+  path: '/chat-space/{room_id}/mention/users'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\MentionController::usernameAutocomplete'
+  requirements:
+    _permission: 'access chat rooms'
+    room_id: \d+
+  methods: [GET]
+
+chat_space.mention.unread:
+  path: '/chat-space/mentions/unread'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\MentionController::getUnreadMentions'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  methods: [GET]
+
+chat_space.mention.test:
+  path: '/chat-space/{room_id}/mention/test'
+  defaults:
+    _controller: '\Drupal\chat_space\Controller\MentionController::testMention'
+  requirements:
+    _permission: 'administer chat space'
+    room_id: \d+
+  methods: [POST]   
