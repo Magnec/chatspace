@@ -1,0 +1,34 @@
+access chat rooms:
+  title: 'Chat odalarını görüntüleyebilir'
+  description: 'Kullanıcıların sohbet odalarını görebilmesini sağlar.'
+  restrict: false
+
+create chat rooms:
+  title: 'Sohbet odası oluşturabilir'
+  description: 'Kullanıcının yeni bir chat odası oluşturmasını sağlar.'
+  restrict: false
+
+send chat messages:
+  title: 'Sohbet mesajı gönderebilir'
+  description: 'Kullanıcıların sohbet odalarında mesaj göndermesini sağlar.'
+  restrict: false
+
+edit own chat messages:
+  title: 'Kendi mesajlarını düzenleyebilir'
+  description: 'Kullanıcının kendi gönderdiği mesajları düzenlemesini sağlar.'
+  restrict: false
+
+delete own chat messages:
+  title: 'Kendi mesajlarını silebilir'
+  description: 'Kullanıcının kendi gönderdiği mesajları silebilmesini sağlar.'
+  restrict: false
+
+delete any chat messages:
+  title: 'Herhangi bir mesajı silebilir'
+  description: 'Moderatörlerin başkalarının mesajlarını silebilmesini sağlar.'
+  restrict: true
+
+administer chat space:
+  title: 'Chat Space modülünü yönetebilir'
+  description: 'Sohbet odalarını ve mesajları düzenleme, silme yetkisi.'
+  restrict: true

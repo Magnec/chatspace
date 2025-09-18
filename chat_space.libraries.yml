@@ -1,0 +1,14 @@
+chat_space:
+  version: 1.x
+  css:
+    theme:
+      css/chat_space.css: {}
+  js:
+    js/chat_space.js: { weight: 0 }
+    js/messages.js: { weight: -10 }
+    js/mention.js: { weight: -5 }  
+    js/emoji.js: { weight: -10 } 
+  dependencies:
+    - core/drupal
+    - core/jquery
+    - core/once

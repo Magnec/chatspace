@@ -1,0 +1,463 @@
+<?php
+
+/**
+ * @file
+ * Install file for Chat Space module.
+ */
+
+use Drupal\Core\Database\Database;
+
+/**
+ * Implements hook_schema().
+ */
+function chat_space_schema() {
+  $schema['chat_space_room'] = [
+    'description' => 'Sohbet odaları',
+    'fields' => [
+      'room_id' => [
+        'type' => 'serial',
+        'not null' => TRUE,
+      ],
+      'title' => [
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ],
+      'description' => [
+        'type' => 'text',
+        'not null' => FALSE,
+      ],
+      'owner' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+      'created' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+      'visibility' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ],
+      // YENİ: Slug alanı
+      'slug' => [
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => FALSE,
+        'description' => 'URL-friendly slug for the room',
+      ],
+    ],
+    'primary key' => ['room_id'],
+    'unique keys' => [
+      'slug' => ['slug'], // Slug benzersiz olmalı
+    ],
+    'indexes' => [
+      'title' => ['title'],
+      'owner' => ['owner'],
+      'created' => ['created'],
+    ],
+  ];
+
+  $schema['chat_space_message'] = [
+    'description' => 'Sohbet mesajları',
+    'fields' => [
+      'message_id' => [
+        'type' => 'serial',
+        'not null' => TRUE,
+      ],
+      'room_id' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+      'uid' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+      'message' => [
+        'type' => 'text',
+        'not null' => TRUE,
+      ],
+      'created' => [
+        'type' => 'int',
+        'not null' => TRUE,
+      ],
+      // YENİ: Düzenleme alanları
+      'edited_at' => [
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+        'description' => 'Timestamp when message was last edited',
+      ],
+      'edited_by' => [
+        'type' => 'int',
+        'not null' => FALSE,
+        'default' => NULL,
+        'description' => 'User ID who last edited the message',
+      ],
+      'status' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 1,
+        'description' => 'Message status: 1 = active, 0 = deleted',
+      ],
+    ],
+    'primary key' => ['message_id'],
+    'indexes' => [
+      'room_id' => ['room_id'],
+      'created' => ['created'],
+      'status' => ['status'],
+    ],
+  ];
+
+  return $schema;
+}
+
+/**
+ * Update existing chat_space_message table with new fields.
+ */
+function chat_space_update_8001() {
+  $schema = Database::getConnection()->schema();
+  
+  // Edited at field ekle
+  if (!$schema->fieldExists('chat_space_message', 'edited_at')) {
+    $schema->addField('chat_space_message', 'edited_at', [
+      'type' => 'int',
+      'not null' => FALSE,
+      'default' => NULL,
+      'description' => 'Timestamp when message was last edited',
+    ]);
+  }
+  
+  // Edited by field ekle
+  if (!$schema->fieldExists('chat_space_message', 'edited_by')) {
+    $schema->addField('chat_space_message', 'edited_by', [
+      'type' => 'int',
+      'not null' => FALSE,
+      'default' => NULL,
+      'description' => 'User ID who last edited the message',
+    ]);
+  }
+  
+  // Status field ekle
+  if (!$schema->fieldExists('chat_space_message', 'status')) {
+    $schema->addField('chat_space_message', 'status', [
+      'type' => 'int',
+      'not null' => TRUE,
+      'default' => 1,
+      'description' => 'Message status: 1 = active, 0 = deleted',
+    ]);
+    
+    // Var olan tüm mesajları aktif olarak işaretle
+    Database::getConnection()->update('chat_space_message')
+      ->fields(['status' => 1])
+      ->execute();
+  }
+  
+  // Index'leri ekle
+  if (!$schema->indexExists('chat_space_message', 'status')) {
+    $schema->addIndex('chat_space_message', 'status', ['status']);
+  }
+}
+
+/**
+ * YENİ: Slug alanını ekle ve mevcut odalar için slug oluştur.
+ */
+function chat_space_update_8002() {
+  $schema = Database::getConnection()->schema();
+  
+  // Slug field'ını ekle
+  if (!$schema->fieldExists('chat_space_room', 'slug')) {
+    $schema->addField('chat_space_room', 'slug', [
+      'type' => 'varchar',
+      'length' => 255,
+      'not null' => FALSE,
+      'description' => 'URL-friendly slug for the room',
+    ]);
+  }
+  
+  // Slug için unique key ekle
+  if (!$schema->indexExists('chat_space_room', 'slug')) {
+    $schema->addUniqueKey('chat_space_room', 'slug', ['slug']);
+  }
+  
+  // Diğer yararlı index'leri ekle
+  if (!$schema->indexExists('chat_space_room', 'title')) {
+    $schema->addIndex('chat_space_room', 'title', ['title']);
+  }
+  
+  if (!$schema->indexExists('chat_space_room', 'owner')) {
+    $schema->addIndex('chat_space_room', 'owner', ['owner']);
+  }
+  
+  if (!$schema->indexExists('chat_space_room', 'created')) {
+    $schema->addIndex('chat_space_room', 'created', ['created']);
+  }
+  
+  // Mevcut odalar için slug oluştur
+  try {
+    $connection = Database::getConnection();
+    $rooms = $connection->select('chat_space_room', 'r')
+      ->fields('r', ['room_id', 'title'])
+      ->condition('slug', NULL, 'IS')
+      ->execute()
+      ->fetchAll();
+    
+    foreach ($rooms as $room) {
+      $slug = chat_space_create_slug_from_title($room->title);
+      $unique_slug = chat_space_ensure_unique_slug($slug, $room->room_id);
+      
+      $connection->update('chat_space_room')
+        ->fields(['slug' => $unique_slug])
+        ->condition('room_id', $room->room_id)
+        ->execute();
+    }
+    
+    \Drupal::logger('chat_space')->notice('Slug fields added and generated for existing rooms.');
+    
+  } catch (\Exception $e) {
+    \Drupal::logger('chat_space')->error('Error generating slugs for existing rooms: @error', [
+      '@error' => $e->getMessage(),
+    ]);
+  }
+}
+
+/**
+ * YENİ: Message modülü entegrasyonu için template ve field'ları oluştur.
+ * Mevcut bildirim sistemiyle uyumlu olacak şekilde.
+ */
+function chat_space_update_8003() {
+  // Message modülü var mı kontrol et
+  if (!\Drupal::moduleHandler()->moduleExists('message')) {
+    \Drupal::logger('chat_space')->warning('Message module not enabled. Mention notifications will not work.');
+    return;
+  }
+
+  try {
+    $entity_type_manager = \Drupal::entityTypeManager();
+    
+    // Message template oluştur
+    $template_id = 'chat_space_mention';
+    $existing_template = $entity_type_manager
+      ->getStorage('message_template')
+      ->load($template_id);
+    
+    if (!$existing_template) {
+      $template = $entity_type_manager
+        ->getStorage('message_template')
+        ->create([
+          'template' => $template_id,
+          'label' => 'Chat Space Mention',
+          'description' => 'Sohbet odasında kullanıcı etiketleme bildirimi',
+          'text' => [
+            [
+              'value' => '[message:field_message:value]', // field_message'ı kullan
+              'format' => 'full_html',
+            ],
+          ],
+          'settings' => [
+            'token_replace' => TRUE,
+            'purge_override' => FALSE,
+          ],
+        ]);
+      
+      $template->save();
+      \Drupal::logger('chat_space')->notice('Message template "chat_space_mention" created.');
+    }
+
+    // field_message field'ını bu bundle için oluştur
+    $field_message_storage = $entity_type_manager
+      ->getStorage('field_storage_config')
+      ->load('message.field_message');
+    
+    if ($field_message_storage) {
+      // Field storage var, sadece bundle instance'ı oluştur
+      $field_message_instance = $entity_type_manager
+        ->getStorage('field_config')
+        ->load('message.' . $template_id . '.field_message');
+      
+      if (!$field_message_instance) {
+        $field_message_instance = $entity_type_manager
+          ->getStorage('field_config')
+          ->create([
+            'field_storage' => $field_message_storage,
+            'bundle' => $template_id,
+            'label' => 'Message',
+            'required' => TRUE,
+          ]);
+        $field_message_instance->save();
+        \Drupal::logger('chat_space')->notice('field_message instance created for chat_space_mention.');
+      }
+    }
+
+    // field_notifications_type field'ını bu bundle için oluştur
+    $field_notifications_type_storage = $entity_type_manager
+      ->getStorage('field_storage_config')
+      ->load('message.field_notifications_type');
+    
+    if ($field_notifications_type_storage) {
+      // Field storage var, sadece bundle instance'ı oluştur
+      $field_notifications_type_instance = $entity_type_manager
+        ->getStorage('field_config')
+        ->load('message.' . $template_id . '.field_notifications_type');
+      
+      if (!$field_notifications_type_instance) {
+        $field_notifications_type_instance = $entity_type_manager
+          ->getStorage('field_config')
+          ->create([
+            'field_storage' => $field_notifications_type_storage,
+            'bundle' => $template_id,
+            'label' => 'Notifications Type',
+            'required' => FALSE,
+          ]);
+        $field_notifications_type_instance->save();
+        \Drupal::logger('chat_space')->notice('field_notifications_type instance created for chat_space_mention.');
+      }
+    }
+
+    \Drupal::logger('chat_space')->notice('Mention system integrated with existing notification system successfully.');
+    
+  } catch (\Exception $e) {
+    \Drupal::logger('chat_space')->error('Error creating mention system: @error', ['@error' => $e->getMessage()]);
+    throw $e;
+  }
+}
+
+/**
+ * YENİ: Mention sistem tablosunu oluştur (opsiyonel - gelişmiş özellikler için).
+ */
+function chat_space_update_8004() {
+  $schema = \Drupal::database()->schema();
+  
+  // Mention geçmişi tablosu
+  if (!$schema->tableExists('chat_space_mentions')) {
+    $table_spec = [
+      'description' => 'Kullanıcı etiketleme geçmişi',
+      'fields' => [
+        'mention_id' => [
+          'type' => 'serial',
+          'not null' => TRUE,
+        ],
+        'message_id' => [
+          'type' => 'int',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ],
+        'room_id' => [
+          'type' => 'int',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ],
+        'sender_uid' => [
+          'type' => 'int',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ],
+        'mentioned_uid' => [
+          'type' => 'int',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ],
+        'created' => [
+          'type' => 'int',
+          'not null' => TRUE,
+          'unsigned' => TRUE,
+        ],
+        'notification_sent' => [
+          'type' => 'int',
+          'not null' => TRUE,
+          'default' => 0,
+          'size' => 'tiny',
+        ],
+      ],
+      'primary key' => ['mention_id'],
+      'indexes' => [
+        'mentioned_uid' => ['mentioned_uid'],
+        'room_id' => ['room_id'],
+        'created' => ['created'],
+        'message_id' => ['message_id'],
+      ],
+      'foreign keys' => [
+        'message_id' => [
+          'table' => 'chat_space_message',
+          'columns' => ['message_id' => 'message_id'],
+        ],
+        'room_id' => [
+          'table' => 'chat_space_room',
+          'columns' => ['room_id' => 'room_id'],
+        ],
+      ],
+    ];
+    
+    $schema->createTable('chat_space_mentions', $table_spec);
+    \Drupal::logger('chat_space')->notice('Mentions tracking table created.');
+  }
+}
+
+/**
+ * Başlıktan slug oluştur - update fonksiyonu için helper.
+ */
+function chat_space_create_slug_from_title($title) {
+  // Türkçe karakterleri dönüştür
+  $replacements = [
+    'ğ' => 'g', 'Ğ' => 'G',
+    'ü' => 'u', 'Ü' => 'U',
+    'ş' => 's', 'Ş' => 'S',
+    'ı' => 'i', 'İ' => 'I',
+    'ö' => 'o', 'Ö' => 'O',
+    'ç' => 'c', 'Ç' => 'C',
+  ];
+  
+  $slug = strtr($title, $replacements);
+  
+  // Küçük harfe çevir
+  $slug = mb_strtolower($slug, 'UTF-8');
+  
+  // Özel karakterleri temizle
+  $slug = preg_replace('/[^a-z0-9\-_]/', '-', $slug);
+  
+  // Çoklu tire/alt çizgileri tek tire yap
+  $slug = preg_replace('/[-_]+/', '-', $slug);
+  
+  // Baş ve sondaki tireleri temizle
+  $slug = trim($slug, '-_');
+  
+  // Minimum 1 karakter olsun
+  if (empty($slug)) {
+    $slug = 'room-' . time();
+  }
+  
+  return $slug;
+}
+
+/**
+ * Benzersiz slug sağla - update fonksiyonu için helper.
+ */
+function chat_space_ensure_unique_slug($slug, $exclude_room_id = NULL) {
+  $original_slug = $slug;
+  $counter = 1;
+  
+  $connection = Database::getConnection();
+  
+  while (TRUE) {
+    $query = $connection->select('chat_space_room', 'r')
+      ->fields('r', ['room_id'])
+      ->condition('slug', $slug)
+      ->range(0, 1);
+    
+    if ($exclude_room_id) {
+      $query->condition('room_id', $exclude_room_id, '<>');
+    }
+    
+    $existing = $query->execute()->fetchField();
+    
+    if (!$existing) {
+      break;
+    }
+    
+    $slug = $original_slug . '-' . $counter;
+    $counter++;
+  }
+  
+  return $slug;
+}
