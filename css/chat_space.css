@@ -242,12 +242,13 @@
   background: var(--discord-hover);
 }
 
-/* YENİ: Grouped messages - compact style */
+/* YENİ: Grouped messages - improved Discord style */
 .chat-message-bubble.grouped {
-  padding-top: 2px;
-  padding-bottom: 2px;
-  min-height: 28px;
-  margin-top: -2px;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  padding-left: 72px;
+  min-height: 22px;
+  margin-top: 0px;
 }
 
 .chat-message-bubble.grouped:hover .grouped-time {
@@ -258,14 +259,27 @@
   display: none;
 }
 
+.chat-message-bubble.grouped .message-content {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.chat-message-bubble.grouped .chat-message-content {
+  line-height: 1.375;
+  margin: 0;
+  padding: 0;
+}
+
 .grouped-time {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
-  margin-right: 6px;
+  margin-right: 4px;
   opacity: 0;
   transition: opacity 0.15s ease;
   display: inline-block;
-  min-width: 50px;
+  min-width: 38px;
+  font-weight: 500;
+  vertical-align: baseline;
 }
 
 .chat-message-avatar {
@@ -966,6 +980,164 @@
 
 .jump-to-bottom:active {
   transform: scale(0.95);
+}
+
+/* ============================================
+   REPLY PREVIEW - Discord Style
+   ============================================ */
+
+.reply-preview {
+  background: var(--discord-input);
+  border-left: 4px solid var(--discord-blurple);
+  border-radius: 4px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reply-preview-content strong {
+  color: var(--discord-blurple);
+  font-size: 13px;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.reply-preview-content p {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+.reply-preview-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 8px;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.reply-preview-close:hover {
+  color: var(--text-normal);
+}
+
+/* ============================================
+   REACTION PICKER - Discord Style
+   ============================================ */
+
+.reaction-picker {
+  position: absolute;
+  bottom: -60px;
+  right: 16px;
+  background: var(--discord-darkest);
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  padding: 8px;
+  z-index: 100;
+  animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.reaction-picker-emojis {
+  display: flex;
+  gap: 4px;
+}
+
+.reaction-emoji {
+  font-size: 24px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  display: inline-block;
+}
+
+.reaction-emoji:hover {
+  background: var(--discord-hover);
+  transform: scale(1.2);
+}
+
+/* ============================================
+   MESSAGE REACTIONS - Discord Style
+   ============================================ */
+
+.message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.message-reaction {
+  background: var(--discord-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 13px;
+}
+
+.message-reaction:hover {
+  background: var(--discord-hover);
+  border-color: var(--discord-blurple);
+}
+
+.message-reaction .reaction-emoji {
+  font-size: 16px;
+  padding: 0;
+}
+
+.message-reaction .reaction-count {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.message-reaction.reaction-pulse {
+  animation: reactionPulse 0.3s ease;
+}
+
+@keyframes reactionPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
 }
 
 /* ============================================
