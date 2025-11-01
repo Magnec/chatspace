@@ -182,26 +182,33 @@
           return;
         }
 
-        // YENİ: Parse message timestamp
-        const msgDate = new Date(msg.timestamp * 1000);
+        // YENİ: Parse message timestamp (GÜVENLİ - timestamp yoksa özellikleri devre dışı bırak)
+        let msgDate = null;
+        let shouldGroup = false;
 
-        // YENİ: Date divider ekle (günler arası)
-        if (!self.lastRenderedDate || !self.isSameDay(msgDate, self.lastRenderedDate)) {
-          const divider = self.createDateDivider(msgDate);
-          msgPanel.appendChild(divider);
-          self.lastRenderedDate = msgDate;
-          self.lastRenderedUser = null; // Yeni gün, user grouping sıfırla
+        if (msg.timestamp) {
+          msgDate = new Date(msg.timestamp * 1000);
+
+          // YENİ: Date divider ekle (günler arası)
+          if (!self.lastRenderedDate || !self.isSameDay(msgDate, self.lastRenderedDate)) {
+            const divider = self.createDateDivider(msgDate);
+            msgPanel.appendChild(divider);
+            self.lastRenderedDate = msgDate;
+            self.lastRenderedUser = null; // Yeni gün, user grouping sıfırla
+          }
+
+          // YENİ: Message grouping - aynı kullanıcıdan 5 dakika içindeki mesajlar
+          shouldGroup = self.lastRenderedUser === msg.uid &&
+                        self.lastRenderedTime &&
+                        (msg.timestamp - self.lastRenderedTime) < 300; // 5 dakika
         }
-
-        // YENİ: Message grouping - aynı kullanıcıdan 5 dakika içindeki mesajlar
-        const shouldGroup = self.lastRenderedUser === msg.uid &&
-                           self.lastRenderedTime &&
-                           (msg.timestamp - self.lastRenderedTime) < 300; // 5 dakika
 
         const div = document.createElement('div');
         div.className = 'chat-message-bubble';
         div.dataset.messageId = msg.message_id;
-        div.dataset.timestamp = msg.timestamp;
+        if (msg.timestamp) {
+          div.dataset.timestamp = msg.timestamp;
+        }
 
         const isCurrentUser = msg.uid == drupalSettings.user?.uid;
         const messageClass = isCurrentUser ? 'own-message' : 'other-message';
@@ -238,7 +245,7 @@
         if (shouldGroup) {
           div.innerHTML = '<div class="message-content">' +
             '<div class="chat-message-content" data-original-text="' + self.escapeHtml(msg.message) + '">' +
-            '<span class="grouped-time">' + self.escapeHtml(msg.created.split(' ')[1]) + '</span>' +
+            '<span class="grouped-time">' + self.escapeHtml(msg.created) + '</span>' +
             messageContent + '</div>' +
             actionsHtml +
             '<div class="message-edit-form" id="edit-form-' + msg.message_id + '">' +
@@ -277,9 +284,11 @@
         msgPanel.appendChild(div);
         hasNewMessages = true;
 
-        // YENİ: Track last rendered message için
-        self.lastRenderedUser = msg.uid;
-        self.lastRenderedTime = msg.timestamp;
+        // YENİ: Track last rendered message için (sadece timestamp varsa)
+        if (msg.timestamp) {
+          self.lastRenderedUser = msg.uid;
+          self.lastRenderedTime = msg.timestamp;
+        }
 
         if (msg.message_id > self.lastMessageId) {
           self.lastMessageId = msg.message_id;
