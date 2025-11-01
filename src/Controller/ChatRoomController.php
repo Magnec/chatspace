@@ -464,8 +464,38 @@ class ChatRoomController extends ControllerBase {
         return strcasecmp($a['name'], $b['name']);
       });
 
+      // YENİ: Typing users bilgisini ekle
+      $typing_users = [];
+      try {
+        if (\Drupal::database()->schema()->tableExists('chat_space_typing')) {
+          $typing_threshold = $current_time - 10; // Son 10 saniye
+          $typing_query = \Drupal::database()->select('chat_space_typing', 't')
+            ->fields('t', ['uid', 'started_typing'])
+            ->condition('room_id', $room_id)
+            ->condition('started_typing', $typing_threshold, '>=');
+          $typing_result = $typing_query->execute();
+
+          foreach ($typing_result as $row) {
+            if ($row->uid != $current_user->id()) { // Kendi typing'imi gösterme
+              $typing_user = array_filter($users, fn($u) => $u['uid'] == $row->uid);
+              if ($typing_user) {
+                $typing_user = reset($typing_user);
+                $typing_users[] = [
+                  'uid' => (int)$row->uid,
+                  'name' => $typing_user['name'],
+                  'started_typing' => (int)$row->started_typing
+                ];
+              }
+            }
+          }
+        }
+      } catch (\Exception $e) {
+        // Typing bilgisi alınamazsa sessizce devam et
+      }
+
       return new JsonResponse([
         'users' => $users,
+        'typing_users' => $typing_users,
         'stats' => [
           'total' => count($users),
           'active_in_room' => count(array_filter($users, fn($u) => $u['status'] === 'active')),
