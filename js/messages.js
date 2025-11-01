@@ -26,6 +26,7 @@
       this.csrfToken = csrfToken;
       this.setupScrollDetection();
       this.setupJumpToBottomButton();
+      this.replyingTo = null; // YENİ: Reply state
     },
 
     // Auto-scroll - HER ZAMAN en alta kaydır
@@ -92,40 +93,46 @@
 
     // YENİ: Typing indicator göster
     updateTypingIndicator: function(typingUsers) {
-      this.typingUsers = typingUsers || [];
-      const msgPanel = document.getElementById('chat-messages');
-      if (!msgPanel) return;
+      try {
+        this.typingUsers = typingUsers || [];
+        const msgPanel = document.getElementById('chat-messages');
+        if (!msgPanel) return;
 
-      // Eski typing indicator'ı kaldır
-      const oldIndicator = document.getElementById('typing-indicator');
-      if (oldIndicator) {
-        oldIndicator.remove();
-      }
-
-      // Typing user varsa göster
-      if (this.typingUsers.length > 0) {
-        const indicator = document.createElement('div');
-        indicator.id = 'typing-indicator';
-        indicator.className = 'typing-indicator';
-
-        let text = '';
-        if (this.typingUsers.length === 1) {
-          text = this.typingUsers[0].name + ' yazıyor...';
-        } else if (this.typingUsers.length === 2) {
-          text = this.typingUsers[0].name + ' ve ' + this.typingUsers[1].name + ' yazıyor...';
-        } else {
-          text = this.typingUsers.length + ' kişi yazıyor...';
+        // Eski typing indicator'ı kaldır
+        const oldIndicator = document.getElementById('typing-indicator');
+        if (oldIndicator) {
+          oldIndicator.remove();
         }
 
-        indicator.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>' +
-          '<span class="typing-text">' + this.escapeHtml(text) + '</span>';
+        // Typing user varsa göster
+        if (this.typingUsers.length > 0) {
+          console.log('Showing typing indicator for:', this.typingUsers);
 
-        msgPanel.appendChild(indicator);
+          const indicator = document.createElement('div');
+          indicator.id = 'typing-indicator';
+          indicator.className = 'typing-indicator';
 
-        // Typing varsa scroll yap
-        if (this.isNearBottom) {
-          this.scrollToBottom(true);
+          let text = '';
+          if (this.typingUsers.length === 1) {
+            text = this.typingUsers[0].name + ' yazıyor...';
+          } else if (this.typingUsers.length === 2) {
+            text = this.typingUsers[0].name + ' ve ' + this.typingUsers[1].name + ' yazıyor...';
+          } else {
+            text = this.typingUsers.length + ' kişi yazıyor...';
+          }
+
+          indicator.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>' +
+            '<span class="typing-text">' + this.escapeHtml(text) + '</span>';
+
+          msgPanel.appendChild(indicator);
+
+          // Typing varsa scroll yap
+          if (this.isNearBottom) {
+            this.scrollToBottom(true);
+          }
         }
+      } catch (e) {
+        console.error('Error updating typing indicator:', e);
       }
     },
 
@@ -219,18 +226,22 @@
           div.classList.add('grouped');
         }
 
-        // YENİ: Edit/Delete butonları
-        let actionsHtml = '';
-        if (msg.can_edit || msg.can_delete) {
-          actionsHtml = '<div class="message-actions">';
-          if (msg.can_edit) {
-            actionsHtml += '<button class="message-action-btn edit-btn" title="Düzenle" onclick="editMessage(' + msg.message_id + ')">✏️</button>';
-          }
-          if (msg.can_delete) {
-            actionsHtml += '<button class="message-action-btn delete-btn" title="Sil" onclick="deleteMessage(' + msg.message_id + ')">🗑️</button>';
-          }
-          actionsHtml += '</div>';
+        // YENİ: Message actions (edit/delete/reply/react)
+        let actionsHtml = '<div class="message-actions">';
+
+        // Reply button (herkes için)
+        actionsHtml += '<button class="message-action-btn reply-btn" title="Cevapla" onclick="replyToMessage(' + msg.message_id + ', \'' + self.escapeHtml(msg.name) + '\', \'' + self.escapeHtml(msg.message).substring(0, 50) + '\')">💬</button>';
+
+        // Reaction button (herkes için)
+        actionsHtml += '<button class="message-action-btn react-btn" title="Tepki ver" onclick="toggleReactionPicker(' + msg.message_id + ')">😊</button>';
+
+        if (msg.can_edit) {
+          actionsHtml += '<button class="message-action-btn edit-btn" title="Düzenle" onclick="editMessage(' + msg.message_id + ')">✏️</button>';
         }
+        if (msg.can_delete) {
+          actionsHtml += '<button class="message-action-btn delete-btn" title="Sil" onclick="deleteMessage(' + msg.message_id + ')">🗑️</button>';
+        }
+        actionsHtml += '</div>';
 
         // YENİ: Düzenleme göstergesi
         let editedText = '';
@@ -530,9 +541,13 @@
         clearInterval(this.messagePollingInterval);
         this.messagePollingInterval = null;
       }
+
+      console.log('Starting message polling with interval:', this.currentPollingInterval + 'ms');
+
       this.messagePollingInterval = setInterval(function() {
         const containerCheck = document.getElementById('chat-space-container');
-        if (!containerCheck || containerCheck.dataset.roomId !== self.currentRoomId) {
+        if (!containerCheck || String(containerCheck.dataset.roomId) !== String(self.currentRoomId)) {
+          console.log('Container not found or room changed, stopping polling');
           clearInterval(self.messagePollingInterval);
           self.messagePollingInterval = null;
           return;
@@ -796,6 +811,159 @@
         deleteBtn.innerHTML = '🗑️';
       }
     });
+  };
+
+  // YENİ: Reply to message
+  window.replyToMessage = function(messageId, userName, messagePreview) {
+    const self = window.ChatSpaceMessages;
+    if (!self) return;
+
+    self.replyingTo = {
+      id: messageId,
+      user: userName,
+      preview: messagePreview
+    };
+
+    // Reply preview göster
+    const input = document.getElementById('chat-message-input');
+    const form = document.getElementById('chat-message-form');
+    if (!input || !form) return;
+
+    // Existing reply preview varsa kaldır
+    const existing = document.getElementById('reply-preview');
+    if (existing) existing.remove();
+
+    // Yeni reply preview oluştur
+    const preview = document.createElement('div');
+    preview.id = 'reply-preview';
+    preview.className = 'reply-preview';
+    preview.innerHTML = '<div class="reply-preview-content">' +
+      '<strong>Cevaplanan: ' + self.escapeHtml(userName) + '</strong>' +
+      '<p>' + self.escapeHtml(messagePreview) + '...</p>' +
+      '</div>' +
+      '<button class="reply-preview-close" onclick="cancelReply()">×</button>';
+
+    form.insertBefore(preview, input);
+    input.focus();
+  };
+
+  window.cancelReply = function() {
+    const self = window.ChatSpaceMessages;
+    if (self) self.replyingTo = null;
+
+    const preview = document.getElementById('reply-preview');
+    if (preview) preview.remove();
+  };
+
+  // YENİ: Toggle reaction picker
+  window.toggleReactionPicker = function(messageId) {
+    // Mevcut picker'ı kapat
+    const existing = document.querySelector('.reaction-picker');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    // Yeni picker oluştur
+    const messageBubble = document.querySelector('[data-message-id="' + messageId + '"]');
+    if (!messageBubble) return;
+
+    const picker = document.createElement('div');
+    picker.className = 'reaction-picker';
+    picker.innerHTML = '<div class="reaction-picker-emojis">' +
+      '<span class="reaction-emoji" onclick="addReaction(' + messageId + ', \'👍\')">👍</span>' +
+      '<span class="reaction-emoji" onclick="addReaction(' + messageId + ', \'❤️\')">❤️</span>' +
+      '<span class="reaction-emoji" onclick="addReaction(' + messageId + ', \'😂\')">😂</span>' +
+      '<span class="reaction-emoji" onclick="addReaction(' + messageId + ', \'😮\')">😮</span>' +
+      '<span class="reaction-emoji" onclick="addReaction(' + messageId + ', \'😢\')">😢</span>' +
+      '<span class="reaction-emoji" onclick="addReaction(' + messageId + ', \'🎉\')">🎉</span>' +
+      '<span class="reaction-emoji" onclick="addReaction(' + messageId + ', \'🔥\')">🔥</span>' +
+      '<span class="reaction-emoji" onclick="addReaction(' + messageId + ', \'👏\')">👏</span>' +
+      '</div>';
+
+    messageBubble.appendChild(picker);
+
+    // Dışarı tıklayınca kapat
+    setTimeout(function() {
+      document.addEventListener('click', function closePicker(e) {
+        if (!e.target.closest('.reaction-picker') && !e.target.closest('.react-btn')) {
+          const p = document.querySelector('.reaction-picker');
+          if (p) p.remove();
+          document.removeEventListener('click', closePicker);
+        }
+      });
+    }, 100);
+  };
+
+  // YENİ: Add reaction
+  window.addReaction = function(messageId, emoji) {
+    const messageBubble = document.querySelector('[data-message-id="' + messageId + '"]');
+    if (!messageBubble) return;
+
+    // Picker'ı kapat
+    const picker = document.querySelector('.reaction-picker');
+    if (picker) picker.remove();
+
+    // Reactions container varsa bul, yoksa oluştur
+    let reactionsContainer = messageBubble.querySelector('.message-reactions');
+    if (!reactionsContainer) {
+      reactionsContainer = document.createElement('div');
+      reactionsContainer.className = 'message-reactions';
+      const content = messageBubble.querySelector('.message-content');
+      if (content) {
+        content.appendChild(reactionsContainer);
+      }
+    }
+
+    // Bu emoji'den var mı kontrol et
+    const existingReaction = Array.from(reactionsContainer.children).find(function(r) {
+      return r.dataset.emoji === emoji;
+    });
+
+    if (existingReaction) {
+      // Varsa count artır
+      const count = existingReaction.querySelector('.reaction-count');
+      if (count) {
+        const currentCount = parseInt(count.textContent) || 0;
+        count.textContent = currentCount + 1;
+        existingReaction.classList.add('reaction-pulse');
+        setTimeout(function() {
+          existingReaction.classList.remove('reaction-pulse');
+        }, 300);
+      }
+    } else {
+      // Yoksa yeni reaction ekle
+      const reaction = document.createElement('button');
+      reaction.className = 'message-reaction';
+      reaction.dataset.emoji = emoji;
+      reaction.innerHTML = '<span class="reaction-emoji">' + emoji + '</span>' +
+        '<span class="reaction-count">1</span>';
+
+      reaction.onclick = function() {
+        // Tıklayınca kaldır veya azalt
+        const count = reaction.querySelector('.reaction-count');
+        const currentCount = parseInt(count.textContent) || 0;
+        if (currentCount > 1) {
+          count.textContent = currentCount - 1;
+        } else {
+          reaction.remove();
+          if (reactionsContainer.children.length === 0) {
+            reactionsContainer.remove();
+          }
+        }
+      };
+
+      reactionsContainer.appendChild(reaction);
+      reaction.classList.add('reaction-pulse');
+      setTimeout(function() {
+        reaction.classList.remove('reaction-pulse');
+      }, 300);
+    }
+
+    // Scroll if needed
+    if (window.ChatSpaceMessages && window.ChatSpaceMessages.isNearBottom) {
+      window.ChatSpaceMessages.scrollToBottom(true);
+    }
   };
 
 })(Drupal, drupalSettings);

@@ -163,8 +163,13 @@
                 updateUserCount(data.users.length, data.stats);
 
                 // YENİ: Typing users'ı göster
-                if (data.typing_users && window.ChatSpaceMessages) {
-                  window.ChatSpaceMessages.updateTypingIndicator(data.typing_users);
+                if (window.ChatSpaceMessages) {
+                  if (data.typing_users && data.typing_users.length > 0) {
+                    console.log('Got typing users from API:', data.typing_users);
+                    window.ChatSpaceMessages.updateTypingIndicator(data.typing_users);
+                  } else {
+                    window.ChatSpaceMessages.updateTypingIndicator([]);
+                  }
                 }
               } else {
                 createFallbackUserList();
