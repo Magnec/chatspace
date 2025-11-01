@@ -78,30 +78,51 @@ function chat_space_mail($key, &$message, $params) {
 }
 
 /**
- * YENİ: Implements hook_cron() - eski mention'ları temizle.
+ * YENİ: Implements hook_cron() - eski mention'ları, heartbeat ve typing'i temizle.
  */
 function chat_space_cron() {
   $config = \Drupal::config('chat_space.settings');
   $retention_days = $config->get('mention_retention_days') ?: 30;
-  
+  $current_time = \Drupal::time()->getRequestTime();
+
   try {
+    // YENİ: Eski heartbeat kayıtlarını temizle (1 saat öncesi)
+    $heartbeat_deleted = \Drupal::database()
+      ->delete('chat_space_heartbeat')
+      ->condition('last_activity', $current_time - 3600, '<')
+      ->execute();
+
+    if ($heartbeat_deleted > 0) {
+      \Drupal::logger('chat_space')->info('Cleaned up @count old heartbeat records.', ['@count' => $heartbeat_deleted]);
+    }
+
+    // YENİ: Eski typing indicator kayıtlarını temizle (30 saniye öncesi)
+    $typing_deleted = \Drupal::database()
+      ->delete('chat_space_typing')
+      ->condition('started_typing', $current_time - 30, '<')
+      ->execute();
+
+    if ($typing_deleted > 0) {
+      \Drupal::logger('chat_space')->info('Cleaned up @count old typing indicator records.', ['@count' => $typing_deleted]);
+    }
+
     // Eski mention kayıtlarını temizle
-    $cutoff_time = \Drupal::time()->getRequestTime() - ($retention_days * 24 * 60 * 60);
-    
+    $cutoff_time = $current_time - ($retention_days * 24 * 60 * 60);
+
     $deleted = \Drupal::database()
       ->delete('chat_space_mentions')
       ->condition('created', $cutoff_time, '<')
       ->execute();
-    
+
     if ($deleted > 0) {
       \Drupal::logger('chat_space')->info('Cleaned up @count old mention records.', ['@count' => $deleted]);
     }
-    
+
     // Message modülü varsa eski mention message'larını da temizle
     if (\Drupal::moduleHandler()->moduleExists('message')) {
       $message_retention_days = $config->get('mention_message_retention_days') ?: 7;
-      $message_cutoff = \Drupal::time()->getRequestTime() - ($message_retention_days * 24 * 60 * 60);
-      
+      $message_cutoff = $current_time - ($message_retention_days * 24 * 60 * 60);
+
       $message_ids = \Drupal::entityTypeManager()
         ->getStorage('message')
         ->getQuery()
@@ -109,22 +130,22 @@ function chat_space_cron() {
         ->condition('template', 'chat_space_mention')
         ->condition('created', $message_cutoff, '<')
         ->execute();
-      
+
       if (!empty($message_ids)) {
         $messages = \Drupal::entityTypeManager()
           ->getStorage('message')
           ->loadMultiple($message_ids);
-        
+
         foreach ($messages as $message) {
           $message->delete();
         }
-        
+
         \Drupal::logger('chat_space')->info('Cleaned up @count old mention messages.', ['@count' => count($message_ids)]);
       }
     }
-    
+
   } catch (\Exception $e) {
-    \Drupal::logger('chat_space')->error('Error during mention cleanup: @error', ['@error' => $e->getMessage()]);
+    \Drupal::logger('chat_space')->error('Error during cleanup: @error', ['@error' => $e->getMessage()]);
   }
 }
 

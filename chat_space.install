@@ -110,6 +110,66 @@ function chat_space_schema() {
     ],
   ];
 
+  // YENİ: Heartbeat tablosu - runtime yerine schema'da tanımlandı
+  $schema['chat_space_heartbeat'] = [
+    'description' => 'Kullanıcı heartbeat bilgileri',
+    'fields' => [
+      'uid' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'description' => 'User ID',
+      ],
+      'room_id' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'description' => 'Room ID',
+      ],
+      'last_activity' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'description' => 'Last activity timestamp',
+      ],
+    ],
+    'primary key' => ['uid', 'room_id'],
+    'indexes' => [
+      'last_activity' => ['last_activity'],
+      'room_id' => ['room_id'],
+    ],
+  ];
+
+  // YENİ: Typing indicator tablosu - runtime yerine schema'da tanımlandı
+  $schema['chat_space_typing'] = [
+    'description' => 'Kullanıcı typing indicator bilgileri',
+    'fields' => [
+      'uid' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'description' => 'User ID',
+      ],
+      'room_id' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'description' => 'Room ID',
+      ],
+      'started_typing' => [
+        'type' => 'int',
+        'not null' => TRUE,
+        'unsigned' => TRUE,
+        'description' => 'Typing start timestamp',
+      ],
+    ],
+    'primary key' => ['uid', 'room_id'],
+    'indexes' => [
+      'started_typing' => ['started_typing'],
+      'room_id' => ['room_id'],
+    ],
+  ];
+
   return $schema;
 }
 

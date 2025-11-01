@@ -499,6 +499,8 @@ class ChatRoomController extends ControllerBase {
 
   /**
    * Heartbeat endpoint - kullanıcının aktif olduğunu belirt.
+   * YENİ: Tablo runtime'da oluşturulmuyor, schema'da tanımlı.
+   * YENİ: Temizlik her istekte değil, cron'da yapılıyor.
    */
   public function heartbeat($room_id) {
     $token = \Drupal::request()->headers->get('X-CSRF-Token');
@@ -508,10 +510,7 @@ class ChatRoomController extends ControllerBase {
 
     $current_user = \Drupal::currentUser();
     $current_time = \Drupal::time()->getRequestTime();
-    
-    // Heartbeat tablosunu oluştur (eğer yoksa)
-    $this->ensureHeartbeatTable();
-    
+
     try {
       // Kullanıcının heartbeat'ini güncelle
       \Drupal::database()->merge('chat_space_heartbeat')
@@ -523,11 +522,6 @@ class ChatRoomController extends ControllerBase {
           'last_activity' => $current_time,
         ])
         ->execute();
-      
-      // Eski heartbeat'leri temizle (1 saat öncesinden)
-      \Drupal::database()->delete('chat_space_heartbeat')
-        ->condition('last_activity', $current_time - 3600, '<')
-        ->execute();
     } catch (\Exception $e) {
       // Heartbeat hatalarını sessizce atla
     }
@@ -537,6 +531,8 @@ class ChatRoomController extends ControllerBase {
 
   /**
    * Typing indicator endpoint.
+   * YENİ: Tablo runtime'da oluşturulmuyor, schema'da tanımlı.
+   * YENİ: Temizlik her istekte değil, cron'da yapılıyor.
    */
   public function typing($room_id, Request $request) {
     $token = $request->headers->get('X-CSRF-Token');
@@ -548,10 +544,7 @@ class ChatRoomController extends ControllerBase {
     $is_typing = $data['typing'] ?? false;
     $current_user = \Drupal::currentUser();
     $current_time = \Drupal::time()->getRequestTime();
-    
-    // Typing tablosunu oluştur (eğer yoksa)
-    $this->ensureTypingTable();
-    
+
     try {
       if ($is_typing) {
         // Typing indicator ekle/güncelle
@@ -571,85 +564,10 @@ class ChatRoomController extends ControllerBase {
           ->condition('room_id', $room_id)
           ->execute();
       }
-      
-      // Eski typing indicator'ları temizle (10 saniye)
-      \Drupal::database()->delete('chat_space_typing')
-        ->condition('started_typing', $current_time - 10, '<')
-        ->execute();
     } catch (\Exception $e) {
       // Typing hatalarını sessizce atla
     }
 
     return new JsonResponse(['success' => true]);
-  }
-
-  /**
-   * Heartbeat tablosunu oluştur.
-   */
-  private function ensureHeartbeatTable() {
-    $schema = \Drupal::database()->schema();
-    if (!$schema->tableExists('chat_space_heartbeat')) {
-      $table_spec = [
-        'description' => 'Kullanıcı heartbeat bilgileri',
-        'fields' => [
-          'uid' => [
-            'type' => 'int',
-            'not null' => TRUE,
-            'unsigned' => TRUE,
-          ],
-          'room_id' => [
-            'type' => 'int',
-            'not null' => TRUE,
-            'unsigned' => TRUE,
-          ],
-          'last_activity' => [
-            'type' => 'int',
-            'not null' => TRUE,
-            'unsigned' => TRUE,
-          ],
-        ],
-        'primary key' => ['uid', 'room_id'],
-        'indexes' => [
-          'last_activity' => ['last_activity'],
-          'room_id' => ['room_id'],
-        ],
-      ];
-      $schema->createTable('chat_space_heartbeat', $table_spec);
-    }
-  }
-
-  /**
-   * Typing tablosunu oluştur.
-   */
-  private function ensureTypingTable() {
-    $schema = \Drupal::database()->schema();
-    if (!$schema->tableExists('chat_space_typing')) {
-      $table_spec = [
-        'description' => 'Kullanıcı typing indicator bilgileri',
-        'fields' => [
-          'uid' => [
-            'type' => 'int',
-            'not null' => TRUE,
-            'unsigned' => TRUE,
-          ],
-          'room_id' => [
-            'type' => 'int',
-            'not null' => TRUE,
-            'unsigned' => TRUE,
-          ],
-          'started_typing' => [
-            'type' => 'int',
-            'not null' => TRUE,
-            'unsigned' => TRUE,
-          ],
-        ],
-        'primary key' => ['uid', 'room_id'],
-        'indexes' => [
-          'started_typing' => ['started_typing'],
-          'room_id' => ['room_id'],
-        ],
-      ];
-      $schema->createTable('chat_space_typing', $table_spec);
-    }
   }
 }
