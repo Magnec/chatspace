@@ -238,7 +238,7 @@
         }
 
         function setupAutorefresh() {
-          // YENİ: User refresh intervali 2000ms → 5000ms (5 saniye)
+          // User refresh intervali - instant feeling için
           const userInterval = setInterval(function() {
             const containerCheck = document.getElementById('chat-space-container');
             if (!containerCheck || containerCheck.dataset.roomId !== currentRoomId) {
@@ -246,7 +246,7 @@
               return;
             }
             fetchUsers();
-          }, 5000);
+          }, 2000);
           
           heartbeatInterval = setInterval(function() {
             const containerCheck = document.getElementById('chat-space-container');
