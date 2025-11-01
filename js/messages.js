@@ -11,6 +11,8 @@
     sendingMessage: false,
     isTabActive: true,
     originalTitle: document.title,
+    isNearBottom: true,
+    typingUsers: [],
 
     // Polling sabitleri - INSTANT feeling için optimize
     POLLING_FAST: 300,      // Aktif sohbet - anlık hissi
@@ -22,6 +24,8 @@
       this.currentRoomId = currentRoomId;
       this.makeRequestWithToken = makeRequestWithToken;
       this.csrfToken = csrfToken;
+      this.setupScrollDetection();
+      this.setupJumpToBottomButton();
     },
 
     // Auto-scroll - HER ZAMAN en alta kaydır
@@ -42,32 +46,172 @@
       }, 100);
     },
 
+    // YENİ: Scroll detection - jump to bottom button için
+    setupScrollDetection: function() {
+      const self = this;
+      const msgPanel = document.getElementById('chat-messages');
+      if (!msgPanel) return;
+
+      msgPanel.addEventListener('scroll', function() {
+        const scrollTop = msgPanel.scrollTop;
+        const scrollHeight = msgPanel.scrollHeight;
+        const clientHeight = msgPanel.clientHeight;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+        self.isNearBottom = distanceFromBottom < 100;
+
+        const jumpBtn = document.getElementById('jump-to-bottom');
+        if (jumpBtn) {
+          if (self.isNearBottom) {
+            jumpBtn.classList.remove('visible');
+          } else {
+            jumpBtn.classList.add('visible');
+          }
+        }
+      });
+    },
+
+    // YENİ: Jump to bottom button
+    setupJumpToBottomButton: function() {
+      const self = this;
+      const msgContainer = document.querySelector('.chat-space-messages');
+      if (!msgContainer || document.getElementById('jump-to-bottom')) return;
+
+      const button = document.createElement('button');
+      button.id = 'jump-to-bottom';
+      button.className = 'jump-to-bottom';
+      button.innerHTML = '↓';
+      button.title = 'En alta git';
+
+      button.addEventListener('click', function() {
+        self.scrollToBottom(true);
+      });
+
+      msgContainer.appendChild(button);
+    },
+
+    // YENİ: Typing indicator göster
+    updateTypingIndicator: function(typingUsers) {
+      this.typingUsers = typingUsers || [];
+      const msgPanel = document.getElementById('chat-messages');
+      if (!msgPanel) return;
+
+      // Eski typing indicator'ı kaldır
+      const oldIndicator = document.getElementById('typing-indicator');
+      if (oldIndicator) {
+        oldIndicator.remove();
+      }
+
+      // Typing user varsa göster
+      if (this.typingUsers.length > 0) {
+        const indicator = document.createElement('div');
+        indicator.id = 'typing-indicator';
+        indicator.className = 'typing-indicator';
+
+        let text = '';
+        if (this.typingUsers.length === 1) {
+          text = this.typingUsers[0].name + ' yazıyor...';
+        } else if (this.typingUsers.length === 2) {
+          text = this.typingUsers[0].name + ' ve ' + this.typingUsers[1].name + ' yazıyor...';
+        } else {
+          text = this.typingUsers.length + ' kişi yazıyor...';
+        }
+
+        indicator.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>' +
+          '<span class="typing-text">' + this.escapeHtml(text) + '</span>';
+
+        msgPanel.appendChild(indicator);
+
+        // Typing varsa scroll yap
+        if (this.isNearBottom) {
+          this.scrollToBottom(true);
+        }
+      }
+    },
+
+    // YENİ: Tarih karşılaştırma helper
+    isSameDay: function(date1, date2) {
+      return date1.getFullYear() === date2.getFullYear() &&
+             date1.getMonth() === date2.getMonth() &&
+             date1.getDate() === date2.getDate();
+    },
+
+    // YENİ: Tarih divider metni
+    getDateDividerText: function(date) {
+      const today = new Date();
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      if (this.isSameDay(date, today)) {
+        return 'Bugün';
+      } else if (this.isSameDay(date, yesterday)) {
+        return 'Dün';
+      } else {
+        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+        return date.toLocaleDateString('tr-TR', options);
+      }
+    },
+
+    // YENİ: Date divider oluştur
+    createDateDivider: function(date) {
+      const divider = document.createElement('div');
+      divider.className = 'date-divider';
+      divider.innerHTML = '<span>' + this.escapeHtml(this.getDateDividerText(date)) + '</span>';
+      return divider;
+    },
+
     renderMessages: function(messages, reset) {
       const self = this;
       reset = reset || false;
       const msgPanel = document.getElementById('chat-messages');
       if (!msgPanel) return;
-      
+
       if (reset) {
         msgPanel.innerHTML = '';
         this.lastMessageId = 0;
+        this.lastRenderedDate = null;
+        this.lastRenderedUser = null;
+        this.lastRenderedTime = null;
       }
-      
+
       let hasNewMessages = false;
       let newMessagesFromOthers = false;
-      
-      messages.forEach(function(msg) {
+
+      messages.forEach(function(msg, index) {
         if (document.querySelector('[data-message-id="' + msg.message_id + '"]')) {
           return;
         }
-        
+
+        // YENİ: Parse message timestamp
+        const msgDate = new Date(msg.timestamp * 1000);
+
+        // YENİ: Date divider ekle (günler arası)
+        if (!self.lastRenderedDate || !self.isSameDay(msgDate, self.lastRenderedDate)) {
+          const divider = self.createDateDivider(msgDate);
+          msgPanel.appendChild(divider);
+          self.lastRenderedDate = msgDate;
+          self.lastRenderedUser = null; // Yeni gün, user grouping sıfırla
+        }
+
+        // YENİ: Message grouping - aynı kullanıcıdan 5 dakika içindeki mesajlar
+        const shouldGroup = self.lastRenderedUser === msg.uid &&
+                           self.lastRenderedTime &&
+                           (msg.timestamp - self.lastRenderedTime) < 300; // 5 dakika
+
         const div = document.createElement('div');
         div.className = 'chat-message-bubble';
         div.dataset.messageId = msg.message_id;
+        div.dataset.timestamp = msg.timestamp;
+
         const isCurrentUser = msg.uid == drupalSettings.user?.uid;
         const messageClass = isCurrentUser ? 'own-message' : 'other-message';
         div.classList.add(messageClass);
-        
+
+        // YENİ: Grouping class
+        if (shouldGroup) {
+          div.classList.add('grouped');
+        }
+
         // YENİ: Edit/Delete butonları
         let actionsHtml = '';
         if (msg.can_edit || msg.can_delete) {
@@ -80,7 +224,7 @@
           }
           actionsHtml += '</div>';
         }
-        
+
         // YENİ: Düzenleme göstergesi
         let editedText = '';
         if (msg.is_edited) {
@@ -89,29 +233,54 @@
 
         // YENİ: Mention'lı mesaj gösterimi - formatted_message varsa onu kullan
         const messageContent = msg.formatted_message || self.formatMessage(msg.message);
-        
-        div.innerHTML = '<img class="chat-message-avatar" src="' + self.escapeHtml(msg.avatar) + '" alt="Avatar" />' +
-          '<div class="message-content">' +
-          '<div class="chat-message-meta">' +
-          '<span class="chat-message-name">' + self.escapeHtml(msg.name) + '</span>' +
-          '<span class="chat-message-time">' + self.escapeHtml(msg.created) + '</span>' +
-          editedText +
-          '</div>' +
-          '<div class="chat-message-content" data-original-text="' + self.escapeHtml(msg.message) + '">' + messageContent + '</div>' +
-          actionsHtml +
-          // YENİ: Inline edit form
-          '<div class="message-edit-form" id="edit-form-' + msg.message_id + '">' +
-          '<textarea class="message-edit-input" id="edit-input-' + msg.message_id + '">' + self.escapeHtml(msg.message) + '</textarea>' +
-          '<div class="message-edit-actions">' +
-          '<button class="message-edit-save" onclick="saveEdit(' + msg.message_id + ')">Kaydet</button>' +
-          '<button class="message-edit-cancel" onclick="cancelEdit(' + msg.message_id + ')">İptal</button>' +
-          '</div>' +
-          '</div>' +
-          '</div>';
-        
+
+        // YENİ: Gruplandırılmış mesajlarda avatar ve meta gizle
+        if (shouldGroup) {
+          div.innerHTML = '<div class="message-content">' +
+            '<div class="chat-message-content" data-original-text="' + self.escapeHtml(msg.message) + '">' +
+            '<span class="grouped-time">' + self.escapeHtml(msg.created.split(' ')[1]) + '</span>' +
+            messageContent + '</div>' +
+            actionsHtml +
+            '<div class="message-edit-form" id="edit-form-' + msg.message_id + '">' +
+            '<textarea class="message-edit-input" id="edit-input-' + msg.message_id + '">' + self.escapeHtml(msg.message) + '</textarea>' +
+            '<div class="message-edit-actions">' +
+            '<button class="message-edit-save" onclick="saveEdit(' + msg.message_id + ')">Kaydet</button>' +
+            '<button class="message-edit-cancel" onclick="cancelEdit(' + msg.message_id + ')">İptal</button>' +
+            '</div>' +
+            '</div>' +
+            '</div>';
+        } else {
+          div.innerHTML = '<img class="chat-message-avatar" src="' + self.escapeHtml(msg.avatar) + '" alt="Avatar" />' +
+            '<div class="message-content">' +
+            '<div class="chat-message-meta">' +
+            '<span class="chat-message-name">' + self.escapeHtml(msg.name) + '</span>' +
+            '<span class="chat-message-time">' + self.escapeHtml(msg.created) + '</span>' +
+            editedText +
+            '</div>' +
+            '<div class="chat-message-content" data-original-text="' + self.escapeHtml(msg.message) + '">' + messageContent + '</div>' +
+            actionsHtml +
+            '<div class="message-edit-form" id="edit-form-' + msg.message_id + '">' +
+            '<textarea class="message-edit-input" id="edit-input-' + msg.message_id + '">' + self.escapeHtml(msg.message) + '</textarea>' +
+            '<div class="message-edit-actions">' +
+            '<button class="message-edit-save" onclick="saveEdit(' + msg.message_id + ')">Kaydet</button>' +
+            '<button class="message-edit-cancel" onclick="cancelEdit(' + msg.message_id + ')">İptal</button>' +
+            '</div>' +
+            '</div>' +
+            '</div>';
+        }
+
+        // YENİ: Fade-in animation
+        setTimeout(function() {
+          div.classList.add('fade-in');
+        }, 10);
+
         msgPanel.appendChild(div);
-        hasNewMessages = true; // Her yeni DOM elementi için scroll yap
-        
+        hasNewMessages = true;
+
+        // YENİ: Track last rendered message için
+        self.lastRenderedUser = msg.uid;
+        self.lastRenderedTime = msg.timestamp;
+
         if (msg.message_id > self.lastMessageId) {
           self.lastMessageId = msg.message_id;
           self.lastMessageTime = Date.now();
@@ -119,17 +288,17 @@
         }
 
         // YENİ: Mention bildirimi göster
-        if (msg.mentions && msg.mentions.length > 0 && isCurrentUser) {
+        if (msg.mentions && msg.mentions.length > 0 && !isCurrentUser) {
           const mentionNames = msg.mentions.map(u => u.name).join(', ');
-          self.showNotification('Etiketlenen kullanıcılar: ' + mentionNames, 'info');
+          self.showNotification('Etiketlendiniz: ' + mentionNames, 'info');
         }
       });
-      
+
       // Yeni mesaj varsa scroll yap - HER ZAMAN
       if (hasNewMessages) {
         this.scrollToBottom(true); // Smooth scroll
         this.adaptPollingSpeed(true);
-        
+
         if (newMessagesFromOthers) {
           this.playNotificationSound();
           if (!this.isTabActive) {

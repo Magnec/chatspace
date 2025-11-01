@@ -223,15 +223,49 @@
   padding: 4px 16px 4px 72px;
   margin: 0;
   position: relative;
-  transition: background 0.1s ease;
+  transition: background 0.1s ease, opacity 0.3s ease, transform 0.3s ease;
   min-height: 44px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+/* YENİ: Fade-in animation */
+.chat-message-bubble.fade-in {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .chat-message-bubble:hover {
   background: var(--discord-hover);
+}
+
+/* YENİ: Grouped messages - compact style */
+.chat-message-bubble.grouped {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  min-height: 28px;
+  margin-top: -2px;
+}
+
+.chat-message-bubble.grouped:hover .grouped-time {
+  opacity: 1;
+}
+
+.chat-message-bubble.grouped .chat-message-avatar {
+  display: none;
+}
+
+.grouped-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-right: 6px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  display: inline-block;
+  min-width: 50px;
 }
 
 .chat-message-avatar {
@@ -242,6 +276,11 @@
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.chat-message-avatar:hover {
+  transform: scale(1.1);
 }
 
 .message-content {
@@ -796,6 +835,140 @@
 }
 
 /* ============================================
+   DATE DIVIDERS - Discord Style
+   ============================================ */
+
+.date-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 24px 0 8px 0;
+  position: relative;
+}
+
+.date-divider::before,
+.date-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.date-divider span {
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ============================================
+   TYPING INDICATOR - Discord Style
+   ============================================ */
+
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px 8px 72px;
+  gap: 8px;
+  opacity: 0;
+  animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; }
+}
+
+.typing-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.typing-dots span {
+  width: 8px;
+  height: 8px;
+  background: var(--text-muted);
+  border-radius: 50%;
+  animation: typing 1.4s infinite;
+}
+
+.typing-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing {
+  0%, 60%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.typing-text {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ============================================
+   JUMP TO BOTTOM BUTTON - Discord Style
+   ============================================ */
+
+.jump-to-bottom {
+  position: absolute;
+  bottom: 80px;
+  right: 24px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--discord-blurple);
+  color: var(--text-bright);
+  border: none;
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+  opacity: 0;
+  transform: scale(0.8);
+  pointer-events: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.jump-to-bottom.visible {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: all;
+}
+
+.jump-to-bottom:hover {
+  background: #4752c4;
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.jump-to-bottom:active {
+  transform: scale(0.95);
+}
+
+/* ============================================
    RESPONSIVE - MOBILE
    ============================================ */
 
@@ -862,6 +1035,36 @@
 
   .chat-message-input {
     font-size: 16px; /* Prevent iOS zoom */
+  }
+
+  /* YENİ: Mobile için typing indicator */
+  .typing-indicator {
+    padding-left: 60px;
+  }
+
+  /* YENİ: Mobile için grouped messages */
+  .chat-message-bubble.grouped {
+    padding-left: 60px;
+  }
+
+  .grouped-time {
+    min-width: 40px;
+    font-size: 10px;
+  }
+
+  /* YENİ: Mobile için jump to bottom */
+  .jump-to-bottom {
+    bottom: 70px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  /* YENİ: Mobile için date divider */
+  .date-divider span {
+    font-size: 11px;
+    padding: 0 12px;
   }
 }
 

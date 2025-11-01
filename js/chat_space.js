@@ -161,6 +161,11 @@
               if (data && data.users && Array.isArray(data.users) && data.users.length > 0) {
                 renderUserList(data.users);
                 updateUserCount(data.users.length, data.stats);
+
+                // YENİ: Typing users'ı göster
+                if (data.typing_users && window.ChatSpaceMessages) {
+                  window.ChatSpaceMessages.updateTypingIndicator(data.typing_users);
+                }
               } else {
                 createFallbackUserList();
               }
