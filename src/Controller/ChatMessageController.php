@@ -123,6 +123,7 @@ class ChatMessageController extends ControllerBase {
           'message' => $msg, // Orijinal mesaj
           'formatted_message' => $formatted_message, // HTML formatlanmış mesaj
           'created' => date('H:i', $message->get('created')->value),
+          'timestamp' => $message->get('created')->value, // YENİ: timestamp field
           'can_edit' => $message->canEdit($current_user),
           'can_delete' => $message->canDelete($current_user, $room),
           'is_edited' => false,
@@ -329,7 +330,7 @@ class ChatMessageController extends ControllerBase {
               'message' => $original_message, // Orijinal mesaj
               'formatted_message' => $formatted_message, // HTML formatlanmış mesaj
               'created' => date('H:i', $msg->get('created')->value),
-              'created_timestamp' => $msg->get('created')->value,
+              'timestamp' => $msg->get('created')->value, // YENİ: timestamp field
               'is_edited' => $msg->isEdited(),
               'edited_at' => $msg->isEdited() ? date('H:i', $msg->getEditedTime()) : null,
               'can_edit' => $msg->canEdit($current_user),
