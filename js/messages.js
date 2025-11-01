@@ -12,11 +12,11 @@
     isTabActive: true,
     originalTitle: document.title,
 
-    // Polling sabitleri
-    POLLING_FAST: 200,
-    POLLING_NORMAL: 500,
-    POLLING_SLOW: 1000,
-    POLLING_IDLE: 2000,
+    // YENİ: Polling sabitleri - Optimize edilmiş süreler
+    POLLING_FAST: 1000,     // 200ms → 1000ms (1 saniye)
+    POLLING_NORMAL: 3000,   // 500ms → 3000ms (3 saniye)
+    POLLING_SLOW: 5000,     // 1000ms → 5000ms (5 saniye)
+    POLLING_IDLE: 10000,    // 2000ms → 10000ms (10 saniye)
 
     init: function(currentRoomId, makeRequestWithToken, csrfToken) {
       this.currentRoomId = currentRoomId;
@@ -24,22 +24,27 @@
       this.csrfToken = csrfToken;
     },
 
+    // YENİ: İyileştirilmiş auto-scroll - kullanıcı yukarıdaysa scroll yapma
     scrollToBottom: function(animated, force) {
       animated = animated === undefined ? true : animated;
       force = force || false;
       const msgPanel = document.getElementById('chat-messages');
       if (!msgPanel) return;
-      
+
       setTimeout(function() {
-        if (animated) {
-          msgPanel.scrollTo({
-            top: msgPanel.scrollHeight,
-            behavior: 'smooth'
-          });
-        } else {
-          msgPanel.scrollTop = msgPanel.scrollHeight;
+        // Kullanıcı en alttaysa veya force=true ise scroll yap
+        const isNearBottom = msgPanel.scrollHeight - msgPanel.scrollTop - msgPanel.clientHeight < 150;
+
+        if (force || isNearBottom) {
+          if (animated) {
+            msgPanel.scrollTo({
+              top: msgPanel.scrollHeight,
+              behavior: 'smooth'
+            });
+          } else {
+            msgPanel.scrollTop = msgPanel.scrollHeight;
+          }
         }
-        console.log('Scroll yapıldı:', msgPanel.scrollTop, '/', msgPanel.scrollHeight);
       }, 100);
     },
 
@@ -126,10 +131,9 @@
         }
       });
       
-      // Yeni mesaj varsa scroll yap
+      // Yeni mesaj varsa scroll yap (ama kullanıcı yukarıdaysa yapma)
       if (hasNewMessages) {
-        console.log('Yeni mesaj var, scroll yapılıyor');
-        this.scrollToBottom(true);
+        this.scrollToBottom(true, false); // force=false: kullanıcı yukarıdaysa scroll yapma
         this.adaptPollingSpeed(true);
         
         if (newMessagesFromOthers) {

@@ -26,6 +26,12 @@ class ChatMessageController extends ControllerBase {
       return new JsonResponse(['error' => 'Invalid token'], 403);
     }
 
+    // YENİ: Rate limiting - dakikada 20 mesaj
+    $flood = \Drupal::flood();
+    if (!$flood->isAllowed('chat_space.send_message', 20, 60)) {
+      return new JsonResponse(['error' => 'Çok fazla mesaj gönderdiniz. Lütfen bekleyin.'], 429);
+    }
+
     // Content-Type kontrolü
     if ($request->headers->get('Content-Type') !== 'application/json') {
       return new JsonResponse(['error' => 'Invalid content type'], 400);
@@ -54,6 +60,9 @@ class ChatMessageController extends ControllerBase {
     }
 
     try {
+      // YENİ: Flood kaydı
+      $flood->register('chat_space.send_message');
+
       // Mesajı kaydet
       $message = ChatMessage::create([
         'room_id' => $room_id,
@@ -94,7 +103,9 @@ class ChatMessageController extends ControllerBase {
 
       // Son mesajı dön (render için)
       $user = User::load($current_user->id());
-      $avatar = '/modules/custom/chatspace/images/default-avatar.png';
+      // YENİ: Dinamik default avatar path
+      $module_path = \Drupal::service('extension.list.module')->getPath('chat_space');
+      $avatar = '/' . $module_path . '/images/default-avatar.png';
       if ($user->user_picture && $user->user_picture->entity) {
         $avatar = \Drupal::service('file_url_generator')->generateAbsoluteString($user->user_picture->entity->getFileUri());
       }
@@ -280,26 +291,36 @@ class ChatMessageController extends ControllerBase {
       
       if ($ids) {
         $msgs = \Drupal::entityTypeManager()->getStorage('chat_space_message')->loadMultiple($ids);
-        
+
         if ($since == 0) {
           $msgs = array_reverse($msgs);
         }
-        
-        // YENİ: Mention servisi
+
+        // YENİ: N+1 query problemini çöz - tüm kullanıcıları bir seferde yükle
+        $user_ids = array_unique(array_map(fn($msg) => $msg->get('uid')->target_id, $msgs));
+        $users = User::loadMultiple($user_ids);
+
+        // Mention servisi
         $mention_service = \Drupal::service('chat_space.mention_service');
-        
+
+        // YENİ: Dinamik default avatar path
+        $module_path = \Drupal::service('extension.list.module')->getPath('chat_space');
+        $default_avatar = '/' . $module_path . '/images/default-avatar.png';
+
         foreach ($msgs as $msg) {
-          $user = User::load($msg->get('uid')->target_id);
+          $uid = $msg->get('uid')->target_id;
+          $user = $users[$uid] ?? NULL;
+
           if ($user) {
-            $avatar = '/modules/custom/chatspace/images/default-avatar.png';
+            $avatar = $default_avatar;
             if ($user->user_picture && $user->user_picture->entity) {
               $avatar = \Drupal::service('file_url_generator')->generateAbsoluteString($user->user_picture->entity->getFileUri());
             }
-            
+
             // YENİ: Mesajı mention formatı ile formatla
             $original_message = $msg->get('message')->value;
             $formatted_message = $mention_service->formatMessageWithMentions($original_message);
-            
+
             $messages[] = [
               'message_id' => $msg->id(),
               'uid' => $user->id(),
